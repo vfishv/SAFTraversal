@@ -13,6 +13,12 @@ Huawei Y5
     SAF is therefore a slowdown of 75.1x
 
 Huawei Y5
+    With opening files
+    Number of folders = 1239
+    Number of files = 2272
+    Files API Time = 669ms
+    SAF API Time = 45681ms
+    SAF is therefore a slowdown of 68.3x
 
 
 Samsung S8+
@@ -25,6 +31,12 @@ Samsung S8+
 
 
 Samsung S8+
+    With opening files
+    Number of folders = 894
+    Number of files = 4247
+    Files API Time = 527ms
+    SAF API Time = 71625ms
+    SAF is therefore a slowdown of 135.9x
 
 
 
