@@ -1,6 +1,7 @@
 package com.evie.saftraversal;
 
 import android.Manifest;
+import android.content.ContentProviderClient;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -8,6 +9,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.RemoteException;
 import android.provider.DocumentsContract;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -99,7 +101,17 @@ public class MainActivity extends AppCompatActivity
 
       if(requestCode == REQUEST_DOCUMENT_PROVIDER_TRAVERSAL && resultCode == RESULT_OK)
       {
-         startTest(() -> traverseTree(data.getData()));
+         startTest(() ->
+         {
+            try
+            {
+               traverseTree(null, data.getData());
+            }
+            catch(RemoteException e)
+            {
+               e.printStackTrace();
+            }
+         });
       }
       else if(requestCode == REQUEST_FULL_TEST && resultCode == RESULT_OK)
       {
@@ -156,7 +168,13 @@ public class MainActivity extends AppCompatActivity
                   et = new ElapsedTime();
                   for(int i = 0; i < TEST_RUNS; i++)
                   {
-                     traverseTree(uri);
+                     try
+                     {
+                        traverseTree(null, uri);
+                     }
+                     catch(Throwable e)
+                     {
+                     }
                      runOnUiThread(() -> mReport.append("..."));
                   }
                   long averageSAFRunTime = et.elapsedTimeInMs() / TEST_RUNS;
@@ -354,40 +372,61 @@ public class MainActivity extends AppCompatActivity
       }
    }
 
-   private void traverseTree(Uri uri)
+   private void traverseTree(ContentProviderClient cpc, Uri uri) throws RemoteException
    {
       String docId = DocumentsContract.getTreeDocumentId(uri);
 
       Uri docUri = DocumentsContract.buildDocumentUriUsingTree(uri,
           docId);
 
-      Cursor docCursor = contentResolver.query(docUri, new String[]{
-              DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE}, null,
-          null,
-          null);
-      try
+      boolean owner = false;
+      if(cpc == null)
       {
-         while(docCursor.moveToNext())
+         cpc = contentResolver.acquireContentProviderClient(docUri);
+         owner = true;
+      }
+
+      if(cpc != null)
+      {
+         try
          {
+            Cursor docCursor = cpc.query(docUri, new String[]{
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE},
+                null,
+                null,
+                null);
+            try
+            {
+               while(docCursor.moveToNext())
+               {
 //                Log.d(TAG, "root doc =" + docCursor.getString(0) + ", mime=" + docCursor
 //                        .getString(1));
+               }
+            }
+            finally
+            {
+               closeQuietly(docCursor);
+            }
+
+            Queue<String> queue = new ArrayDeque<>();
+
+            queue.add(docId);
+
+            mFilesTraversed = 0;
+            mFoldersTraversed = 1;
+            while(queue.size() > 0)
+            {
+               String currentDocId = queue.remove();
+               traverseTree(uri, currentDocId, queue);
+            }
          }
-      }
-      finally
-      {
-         closeQuietly(docCursor);
-      }
-
-      Queue<String> queue = new ArrayDeque<>();
-
-      queue.add(docId);
-
-      mFilesTraversed = 0;
-      mFoldersTraversed = 1;
-      while(queue.size() > 0)
-      {
-         String currentDocId = queue.remove();
-         traverseTree(uri, currentDocId, queue);
+         finally
+         {
+            if(owner)
+            {
+               cpc.close();
+            }
+         }
       }
    }
 
